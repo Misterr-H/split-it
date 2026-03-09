@@ -14,9 +14,9 @@ import {
 } from 'react-native';
 import { useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
-import { addExpense, subscribeToGroup } from '@/lib/firestore';
+import { addExpense, updateExpense, subscribeToGroup, subscribeToGroupExpenses } from '@/lib/firestore';
 import { formatAmount, CURRENCY_SYMBOLS } from '@/lib/types';
-import type { Group } from '@/lib/types';
+import type { Expense, Group } from '@/lib/types';
 
 type SplitMode = 'equally' | 'exact' | 'percentage' | 'shares' | 'adjustment';
 
@@ -53,11 +53,13 @@ const MODE_LABELS: Record<SplitMode, string> = {
 };
 
 export default function AddExpenseScreen() {
-  const { groupId } = useLocalSearchParams<{ groupId: string }>();
+  const { groupId, expenseId } = useLocalSearchParams<{ groupId: string; expenseId?: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const isEditing = !!expenseId;
 
   const [group, setGroup] = useState<Group | null>(null);
+  const [existingExpense, setExistingExpense] = useState<Expense | null>(null);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
 
@@ -75,11 +77,12 @@ export default function AddExpenseScreen() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Load group
   useEffect(() => {
     if (!groupId) return;
     const unsub = subscribeToGroup(groupId, (g) => {
       setGroup(g);
-      if (g && user) {
+      if (g && user && !isEditing) {
         setPaidBy(user.uid);
         setEquallySelected(g.members);
         const initExact: Record<string, string> = {};
@@ -99,7 +102,50 @@ export default function AddExpenseScreen() {
       }
     });
     return unsub;
-  }, [groupId, user]);
+  }, [groupId, user, isEditing]);
+
+  // When editing: load the expense and pre-populate form once group is available
+  useEffect(() => {
+    if (!groupId || !expenseId) return;
+    const unsub = subscribeToGroupExpenses(groupId, (exps) => {
+      const exp = exps.find((e) => e.id === expenseId);
+      if (!exp) return;
+      setExistingExpense(exp);
+    });
+    return unsub;
+  }, [groupId, expenseId]);
+
+  // Pre-populate form from existing expense once both are loaded
+  useEffect(() => {
+    if (!existingExpense || !group) return;
+    setDescription(existingExpense.description);
+    setAmount(existingExpense.amount.toFixed(2));
+    setPaidBy(existingExpense.paidBy);
+    // Pre-populate as "exact" mode using split amounts
+    setSplitMode('exact');
+    setShowAdvanced(true);
+    const initExact: Record<string, string> = {};
+    const initPct: Record<string, string> = {};
+    const initShares: Record<string, string> = {};
+    const initAdj: Record<string, string> = {};
+    const paidAmount = existingExpense.amount - Object.values(existingExpense.splits).reduce((s, v) => s + v, 0);
+    group.members.forEach((uid) => {
+      if (uid === existingExpense.paidBy) {
+        initExact[uid] = paidAmount > 0 ? paidAmount.toFixed(2) : '0';
+      } else {
+        initExact[uid] = (existingExpense.splits[uid] ?? 0) > 0
+          ? (existingExpense.splits[uid]).toFixed(2)
+          : '';
+      }
+      initPct[uid] = '';
+      initShares[uid] = '1';
+      initAdj[uid] = '0';
+    });
+    setExactValues(initExact);
+    setPercentValues(initPct);
+    setShareValues(initShares);
+    setAdjustValues(initAdj);
+  }, [existingExpense, group]);
 
   const numAmount = parseFloat(amount) || 0;
   const symbol = group ? (CURRENCY_SYMBOLS[group.currency] ?? group.currency) : '';
@@ -245,10 +291,14 @@ export default function AddExpenseScreen() {
     }
     setSaving(true);
     try {
-      await addExpense(group.id, description.trim(), numAmount, paidBy, splits, user.uid);
+      if (isEditing && expenseId) {
+        await updateExpense(group.id, expenseId, description.trim(), numAmount, paidBy, splits);
+      } else {
+        await addExpense(group.id, description.trim(), numAmount, paidBy, splits, user.uid);
+      }
       router.back();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add expense');
+      Alert.alert('Error', e instanceof Error ? e.message : isEditing ? 'Failed to update expense' : 'Failed to add expense');
     } finally {
       setSaving(false);
     }
@@ -327,8 +377,8 @@ export default function AddExpenseScreen() {
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.groupTag}>
-          <Ionicons name="albums-outline" size={14} color={Colors.primary} />
-          <Text style={styles.groupTagText}>{group.name}</Text>
+          <Ionicons name={isEditing ? 'create-outline' : 'albums-outline'} size={14} color={Colors.primary} />
+          <Text style={styles.groupTagText}>{isEditing ? `Edit · ${group.name}` : group.name}</Text>
         </View>
 
         <Text style={styles.label}>Description</Text>
@@ -378,7 +428,9 @@ export default function AddExpenseScreen() {
           onPress={handleSave}
           disabled={saving}
         >
-          <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Add Expense'}</Text>
+          <Text style={styles.buttonText}>
+            {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Expense'}
+          </Text>
         </Pressable>
       </ScrollView>
 

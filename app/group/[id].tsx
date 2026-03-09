@@ -23,6 +23,7 @@ import {
 import {
   addSettlement,
   createInvite,
+  deleteExpense,
   subscribeToGroup,
   subscribeToGroupExpenses,
   subscribeToGroupSettlements,
@@ -33,7 +34,7 @@ import type { Balance, Expense, Group, MemberNetBalance, Settlement } from '@/li
 
 const WEB_APP_URL = 'https://split-it-web.vercel.app';
 
-type OverlayType = 'settle' | 'charts' | 'balances' | 'totals' | 'whiteboard' | null;
+type OverlayType = 'settle' | 'charts' | 'balances' | 'totals' | 'whiteboard' | 'expense' | null;
 
 interface SettleTarget {
   uid: string;
@@ -55,6 +56,7 @@ export default function GroupDetailScreen() {
   const [loading, setLoading] = useState(true);
 
   const [overlay, setOverlay] = useState<OverlayType>(null);
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
 
   // Settle Up state
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
@@ -188,7 +190,10 @@ export default function GroupDetailScreen() {
     const isInvolved = isPaidByMe || myShare > 0;
 
     return (
-      <View style={styles.expenseCard}>
+      <Pressable
+        style={({ pressed }) => [styles.expenseCard, pressed && { opacity: 0.75 }]}
+        onPress={() => { setSelectedExpense(item); setOverlay('expense'); }}
+      >
         <View style={styles.expenseIcon}>
           <Ionicons name="receipt-outline" size={18} color={Colors.primary} />
         </View>
@@ -213,7 +218,8 @@ export default function GroupDetailScreen() {
             </>
           )}
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={14} color={Colors.light.border} style={{ marginLeft: 2 }} />
+      </Pressable>
     );
   }
 
@@ -602,6 +608,132 @@ export default function GroupDetailScreen() {
           </View>
         </View>
       )}
+
+      {/* ══════════ EXPENSE DETAIL OVERLAY ══════════ */}
+      {overlay === 'expense' && selectedExpense && (
+        <View style={styles.overlay}>
+          <View style={styles.overlayHeader}>
+            <Pressable onPress={() => { setOverlay(null); setSelectedExpense(null); }} hitSlop={12}>
+              <Text style={styles.overlayClose}>✕</Text>
+            </Pressable>
+            <Text style={styles.overlayTitle}>Expense Details</Text>
+            <View style={{ width: 32 }} />
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.overlayContent}>
+            {/* Hero card */}
+            <View style={styles.expDetailHero}>
+              <View style={styles.expDetailIconLg}>
+                <Ionicons name="receipt-outline" size={28} color={Colors.primary} />
+              </View>
+              <Text style={styles.expDetailDesc}>{selectedExpense.description}</Text>
+              <Text style={styles.expDetailAmount}>{formatAmount(selectedExpense.amount, group.currency)}</Text>
+              <Text style={styles.expDetailDate}>
+                {selectedExpense.date?.toDate?.().toLocaleDateString('en-IN', {
+                  day: 'numeric', month: 'long', year: 'numeric',
+                }) ?? ''}
+              </Text>
+            </View>
+
+            {/* Paid by */}
+            <View style={styles.expDetailSection}>
+              <Text style={styles.expDetailSectionTitle}>PAID BY</Text>
+              <View style={styles.expDetailRow}>
+                <View style={styles.expDetailAvatar}>
+                  <Text style={styles.expDetailAvatarText}>
+                    {(selectedExpense.paidBy === user?.uid ? 'You' : (group.memberDetails[selectedExpense.paidBy]?.displayName ?? selectedExpense.paidBy))[0]?.toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={styles.expDetailRowName}>
+                  {selectedExpense.paidBy === user?.uid ? 'You' : (group.memberDetails[selectedExpense.paidBy]?.displayName ?? selectedExpense.paidBy)}
+                </Text>
+                <Text style={[styles.expDetailRowAmount, { color: Colors.primary }]}>
+                  {formatAmount(selectedExpense.amount, group.currency)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Split breakdown */}
+            <View style={styles.expDetailSection}>
+              <Text style={styles.expDetailSectionTitle}>SPLIT</Text>
+              {/* Payer's own share */}
+              {(() => {
+                const splitTotal = Object.values(selectedExpense.splits).reduce((s, v) => s + v, 0);
+                const payerShare = selectedExpense.amount - splitTotal;
+                const payerName = selectedExpense.paidBy === user?.uid ? 'You' : (group.memberDetails[selectedExpense.paidBy]?.displayName ?? selectedExpense.paidBy);
+                return (
+                  <View style={styles.expDetailRow}>
+                    <View style={styles.expDetailAvatar}>
+                      <Text style={styles.expDetailAvatarText}>{payerName[0]?.toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.expDetailRowName}>{payerName}</Text>
+                    {payerShare > 0.001 ? (
+                      <Text style={styles.expDetailRowAmount}>{formatAmount(payerShare, group.currency)}</Text>
+                    ) : (
+                      <Text style={[styles.expDetailRowAmount, { color: Colors.light.textSecondary }]}>paid in full</Text>
+                    )}
+                  </View>
+                );
+              })()}
+              {Object.entries(selectedExpense.splits).map(([uid, amt]) => {
+                const name = uid === user?.uid ? 'You' : (group.memberDetails[uid]?.displayName ?? uid);
+                return (
+                  <View key={uid} style={styles.expDetailRow}>
+                    <View style={styles.expDetailAvatar}>
+                      <Text style={styles.expDetailAvatarText}>{name[0]?.toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.expDetailRowName}>{name}</Text>
+                    <Text style={[styles.expDetailRowAmount, { color: Colors.danger }]}>
+                      {formatAmount(amt, group.currency)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Actions */}
+            <View style={styles.expDetailActions}>
+              <Pressable
+                style={styles.expDetailEditBtn}
+                onPress={() => {
+                  setOverlay(null);
+                  router.push({ pathname: '/add-expense', params: { groupId: id, expenseId: selectedExpense.id } });
+                }}
+              >
+                <Ionicons name="create-outline" size={18} color={Colors.primary} />
+                <Text style={styles.expDetailEditBtnText}>Edit Expense</Text>
+              </Pressable>
+              <Pressable
+                style={styles.expDetailDeleteBtn}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete Expense',
+                    `Delete "${selectedExpense.description}"? This cannot be undone.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await deleteExpense(id!, selectedExpense.id);
+                            setOverlay(null);
+                            setSelectedExpense(null);
+                          } catch {
+                            Alert.alert('Error', 'Failed to delete expense');
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                <Text style={styles.expDetailDeleteBtnText}>Delete Expense</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -882,4 +1014,90 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   whiteboardFooterText: { fontSize: 12, color: Colors.light.textSecondary },
+
+  // Expense Detail
+  expDetailHero: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    backgroundColor: Colors.light.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginBottom: 12,
+  },
+  expDetailIconLg: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  expDetailDesc: { fontSize: 20, fontWeight: '700', color: Colors.light.text, marginBottom: 4, textAlign: 'center', paddingHorizontal: 16 },
+  expDetailAmount: { fontSize: 36, fontWeight: '700', color: Colors.primary, marginBottom: 4 },
+  expDetailDate: { fontSize: 13, color: Colors.light.textSecondary },
+  expDetailSection: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  expDetailSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    letterSpacing: 0.8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    textTransform: 'uppercase',
+  },
+  expDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  expDetailAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expDetailAvatarText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  expDetailRowName: { flex: 1, fontSize: 15, fontWeight: '500', color: Colors.light.text },
+  expDetailRowAmount: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  expDetailActions: { gap: 10, marginTop: 4, marginBottom: 24 },
+  expDetailEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 15,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+  },
+  expDetailEditBtnText: { fontSize: 16, fontWeight: '700', color: Colors.primary },
+  expDetailDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 15,
+    borderWidth: 1.5,
+    borderColor: Colors.danger,
+    backgroundColor: '#FFF0F0',
+  },
+  expDetailDeleteBtnText: { fontSize: 16, fontWeight: '700', color: Colors.danger },
 });
