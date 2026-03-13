@@ -24,17 +24,20 @@ import {
   addSettlement,
   createInvite,
   deleteExpense,
+  deleteGroup,
   subscribeToGroup,
   subscribeToGroupExpenses,
   subscribeToGroupSettlements,
+  updateGroup,
   updateGroupWhiteboard,
 } from '@/lib/firestore';
-import { formatAmount, CURRENCY_SYMBOLS } from '@/lib/types';
-import type { Balance, Expense, Group, MemberNetBalance, Settlement } from '@/lib/types';
+import { CURRENCIES, CURRENCY_SYMBOLS, formatAmount, GROUP_CATEGORIES } from '@/lib/types';
+import type { Balance, Expense, Group, GroupCategory, Settlement } from '@/lib/types';
+import type { MemberNetBalance } from '@/lib/balance';
 
-const WEB_APP_URL = 'https://split-it-web.vercel.app';
+const WEB_APP_URL = 'https://split-it.xyz';
 
-type OverlayType = 'settle' | 'charts' | 'balances' | 'totals' | 'whiteboard' | 'expense' | null;
+type OverlayType = 'settle' | 'charts' | 'balances' | 'totals' | 'whiteboard' | 'expense' | 'groupSettings' | null;
 
 interface SettleTarget {
   uid: string;
@@ -68,12 +71,35 @@ export default function GroupDetailScreen() {
   const [whiteboardText, setWhiteboardText] = useState('');
   const whiteboardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Group settings state
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<GroupCategory>('other');
+  const [editCurrency, setEditCurrency] = useState('INR');
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     const unsubGroup = subscribeToGroup(id, (g) => {
       setGroup(g);
       if (g) {
-        navigation.setOptions({ title: g.name });
+        navigation.setOptions({
+          title: g.name,
+          headerRight: () => (
+            <Pressable
+              onPress={() => {
+                setEditName(g.name);
+                setEditCategory(g.category);
+                setEditCurrency(g.currency);
+                setOverlay('groupSettings');
+              }}
+              hitSlop={12}
+              style={{ marginRight: 4 }}
+            >
+              <Ionicons name="settings-outline" size={22} color={Colors.primary} />
+            </Pressable>
+          ),
+        });
         setWhiteboardText(g.whiteboard ?? '');
       }
     });
@@ -89,13 +115,59 @@ export default function GroupDetailScreen() {
       unsubExpenses();
       unsubSettlements();
     };
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!group || !user) return;
     setBalances(calculateGroupBalances(expenses, user.uid, group.memberDetails, settlements));
     setMemberTotals(calculateMemberNetBalances(expenses, settlements, group.memberDetails));
   }, [expenses, settlements, group, user]);
+
+  async function handleSaveGroupSettings() {
+    if (!group) return;
+    if (!editName.trim()) {
+      Alert.alert('Error', 'Group name cannot be empty');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await updateGroup(group.id, {
+        name: editName.trim(),
+        category: editCategory,
+        currency: editCurrency,
+      });
+      setOverlay(null);
+    } catch {
+      Alert.alert('Error', 'Failed to update group');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  function handleDeleteGroup() {
+    if (!group) return;
+    Alert.alert(
+      'Delete Group',
+      `Are you sure you want to delete "${group.name}"? All expenses and settlements will be permanently deleted.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingGroup(true);
+            try {
+              await deleteGroup(group.id);
+              router.replace('/(app)/groups');
+            } catch {
+              Alert.alert('Error', 'Failed to delete group');
+              setDeletingGroup(false);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   async function handleInvite() {
     if (!group || !user) return;
@@ -609,6 +681,120 @@ export default function GroupDetailScreen() {
         </View>
       )}
 
+      {/* ══════════ GROUP SETTINGS OVERLAY ══════════ */}
+      {overlay === 'groupSettings' && (
+        <View style={styles.overlay}>
+          <View style={styles.overlayHeader}>
+            <Pressable onPress={() => setOverlay(null)} hitSlop={12}>
+              <Text style={styles.overlayClose}>✕</Text>
+            </Pressable>
+            <Text style={styles.overlayTitle}>Group Settings</Text>
+            <Pressable onPress={handleSaveGroupSettings} disabled={editSaving} hitSlop={12}>
+              <Text style={[styles.overlayDone, editSaving && { opacity: 0.4 }]}>
+                {editSaving ? 'Saving…' : 'Save'}
+              </Text>
+            </Pressable>
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.overlayContent} keyboardShouldPersistTaps="handled">
+            {/* Group name */}
+            <Text style={styles.gsLabel}>Group Name</Text>
+            <TextInput
+              style={styles.gsInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Group name"
+              placeholderTextColor={Colors.light.textSecondary}
+              maxLength={60}
+            />
+
+            {/* Category */}
+            <Text style={styles.gsLabel}>Category</Text>
+            <View style={styles.gsCategoryGrid}>
+              {GROUP_CATEGORIES.map((cat) => (
+                <Pressable
+                  key={cat.value}
+                  style={[styles.gsCategoryCard, editCategory === cat.value && styles.gsCategoryCardSelected]}
+                  onPress={() => setEditCategory(cat.value)}
+                >
+                  <Ionicons
+                    name={cat.icon as React.ComponentProps<typeof Ionicons>['name']}
+                    size={22}
+                    color={editCategory === cat.value ? Colors.primary : Colors.light.textSecondary}
+                  />
+                  <Text style={[styles.gsCategoryLabel, editCategory === cat.value && { color: Colors.primary }]}>
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Currency */}
+            <Text style={styles.gsLabel}>Currency</Text>
+            <View style={styles.gsCurrencyGrid}>
+              {CURRENCIES.map((c) => (
+                <Pressable
+                  key={c.code}
+                  style={[styles.gsCurrencyChip, editCurrency === c.code && styles.gsCurrencyChipSelected]}
+                  onPress={() => setEditCurrency(c.code)}
+                >
+                  <Text style={[styles.gsCurrencyText, editCurrency === c.code && { color: Colors.primary }]}>
+                    {c.symbol} {c.code}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Members */}
+            <Text style={styles.gsLabel}>Members ({group.members.length})</Text>
+            <View style={styles.gsMemberList}>
+              {group.members.map((uid) => {
+                const detail = group.memberDetails[uid];
+                const isCreator = uid === group.createdBy;
+                const isMe = uid === user?.uid;
+                return (
+                  <View key={uid} style={styles.gsMemberRow}>
+                    <View style={styles.gsMemberAvatar}>
+                      <Text style={styles.gsMemberAvatarText}>
+                        {(detail?.displayName ?? uid)[0].toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.gsMemberName}>
+                        {isMe ? 'You' : (detail?.displayName ?? uid)}
+                      </Text>
+                      <Text style={styles.gsMemberEmail}>{detail?.email ?? ''}</Text>
+                    </View>
+                    {isCreator && (
+                      <View style={styles.gsCreatorBadge}>
+                        <Text style={styles.gsCreatorBadgeText}>Creator</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Danger zone */}
+            <View style={styles.gsDanger}>
+              <Text style={styles.gsDangerTitle}>Danger Zone</Text>
+              <Pressable
+                style={[styles.gsDeleteBtn, deletingGroup && { opacity: 0.6 }]}
+                onPress={handleDeleteGroup}
+                disabled={deletingGroup}
+              >
+                <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                <Text style={styles.gsDeleteBtnText}>
+                  {deletingGroup ? 'Deleting…' : 'Delete Group'}
+                </Text>
+              </Pressable>
+              <Text style={styles.gsDangerNote}>
+                This will permanently delete all expenses and settlements.
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
       {/* ══════════ EXPENSE DETAIL OVERLAY ══════════ */}
       {overlay === 'expense' && selectedExpense && (
         <View style={styles.overlay}>
@@ -854,6 +1040,7 @@ const styles = StyleSheet.create({
   },
   overlayTitle: { fontSize: 17, fontWeight: '700', color: Colors.light.text },
   overlayClose: { fontSize: 18, color: Colors.light.textSecondary, width: 32 },
+  overlayDone: { fontSize: 15, color: Colors.primary, fontWeight: '700', width: 52, textAlign: 'right' },
   overlayAutoSave: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
   overlayContent: { padding: 16, paddingBottom: 32, gap: 10 },
   overlaySubtitle: { fontSize: 20, fontWeight: '700', color: Colors.light.text, marginBottom: 8 },
@@ -1014,6 +1201,104 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   whiteboardFooterText: { fontSize: 12, color: Colors.light.textSecondary },
+
+  // Group Settings
+  gsLabel: { fontSize: 13, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 10, marginTop: 20, textTransform: 'uppercase', letterSpacing: 0.5 },
+  gsInput: {
+    backgroundColor: Colors.light.card,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: Colors.light.text,
+  },
+  gsCategoryGrid: { flexDirection: 'row', gap: 10 },
+  gsCategoryCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    backgroundColor: Colors.light.card,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: 6,
+  },
+  gsCategoryCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  gsCategoryLabel: { fontSize: 11, fontWeight: '600', color: Colors.light.textSecondary },
+  gsCurrencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  gsCurrencyChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: Colors.light.card,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+  },
+  gsCurrencyChipSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  gsCurrencyText: { fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary },
+  gsMemberList: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    overflow: 'hidden',
+  },
+  gsMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  gsMemberAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gsMemberAvatarText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  gsMemberName: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
+  gsMemberEmail: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 1 },
+  gsCreatorBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + '40',
+  },
+  gsCreatorBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  gsDanger: {
+    marginTop: 32,
+    marginBottom: 8,
+    padding: 16,
+    backgroundColor: '#FFF5F5',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.danger + '30',
+    gap: 10,
+  },
+  gsDangerTitle: { fontSize: 13, fontWeight: '700', color: Colors.danger, textTransform: 'uppercase', letterSpacing: 0.5 },
+  gsDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.danger,
+    backgroundColor: '#FFF0F0',
+  },
+  gsDeleteBtnText: { fontSize: 15, fontWeight: '700', color: Colors.danger },
+  gsDangerNote: { fontSize: 12, color: Colors.danger + 'AA', textAlign: 'center' },
 
   // Expense Detail
   expDetailHero: {

@@ -4,6 +4,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   getDoc,
   onSnapshot,
   orderBy,
@@ -12,6 +13,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Expense, Group, Invite, Settlement, UserProfile } from './types';
@@ -110,6 +112,26 @@ export async function addExpense(
     createdBy,
     createdAt: serverTimestamp(),
   });
+}
+
+export async function updateGroup(
+  groupId: string,
+  fields: { name?: string; category?: import('./types').GroupCategory; currency?: string }
+): Promise<void> {
+  await updateDoc(doc(db, 'groups', groupId), fields);
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  const batch = writeBatch(db);
+  // Delete all expenses
+  const expSnap = await getDocs(collection(db, 'groups', groupId, 'expenses'));
+  expSnap.forEach((d) => batch.delete(d.ref));
+  // Delete all settlements
+  const settSnap = await getDocs(collection(db, 'groups', groupId, 'settlements'));
+  settSnap.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  // Delete the group document itself
+  await deleteDoc(doc(db, 'groups', groupId));
 }
 
 export async function updateExpense(
