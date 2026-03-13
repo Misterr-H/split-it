@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "split-it",
+    "name": "Split It",
     "slug": "split-it",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/1024.png",
     "scheme": "splitit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
