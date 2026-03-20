@@ -19,6 +19,27 @@ import type { Expense, Group } from '@/lib/types';
 
 type GroupWithBalance = Group & { netBalance: number };
 
+function BalanceBanner({ owedEntries, oweEntries, allSettled }: {
+  owedEntries: [string, number][];
+  oweEntries:  [string, number][];
+  allSettled:  boolean;
+}) {
+  if (allSettled) return <Text style={styles.headerSub}>All settled up</Text>;
+  const fmt = (entries: [string, number][]) =>
+    entries.map(([cur, amt]) => formatAmount(Math.abs(amt), cur)).join(' + ');
+  if (owedEntries.length > 0 && oweEntries.length > 0) {
+    return (
+      <View>
+        <Text style={[styles.headerSub, { color: Colors.primary }]}>You are owed {fmt(owedEntries)}</Text>
+        <Text style={[styles.headerSub, { color: Colors.danger }]}>You owe {fmt(oweEntries)}</Text>
+      </View>
+    );
+  }
+  if (owedEntries.length > 0)
+    return <Text style={[styles.headerSub, { color: Colors.primary }]}>You are owed {fmt(owedEntries)}</Text>;
+  return <Text style={[styles.headerSub, { color: Colors.danger }]}>You owe {fmt(oweEntries)}</Text>;
+}
+
 export default function GroupsScreen() {
   const { user } = useAuth();
   const router = useRouter();
@@ -67,7 +88,15 @@ export default function GroupsScreen() {
     };
   }, [user]);
 
-  const overallBalance = groups.reduce((sum, g) => sum + g.netBalance, 0);
+  const perCurrencyBalance = groups.reduce<Record<string, number>>((acc, g) => {
+    if (Math.abs(g.netBalance) > 0.001) {
+      acc[g.currency] = (acc[g.currency] ?? 0) + g.netBalance;
+    }
+    return acc;
+  }, {});
+  const owedEntries = Object.entries(perCurrencyBalance).filter(([, v]) => v >  0.001);
+  const oweEntries  = Object.entries(perCurrencyBalance).filter(([, v]) => v < -0.001);
+  const allSettled  = owedEntries.length === 0 && oweEntries.length === 0;
 
   function renderItem({ item }: { item: GroupWithBalance }) {
     const isPositive = item.netBalance >= 0;
@@ -106,15 +135,7 @@ export default function GroupsScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Groups</Text>
-          {!loading && (
-            <Text style={[styles.headerSub, { color: overallBalance >= 0 ? Colors.primary : Colors.danger }]}>
-              {overallBalance === 0
-                ? 'All settled up'
-                : overallBalance > 0
-                  ? `Overall you are owed`
-                  : `Overall you owe`}
-            </Text>
-          )}
+          {!loading && <BalanceBanner owedEntries={owedEntries} oweEntries={oweEntries} allSettled={allSettled} />}
         </View>
         <Pressable style={styles.createBtn} onPress={() => router.push('/create-group')}>
           <Ionicons name="add" size={22} color="#FFF" />

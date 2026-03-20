@@ -8,6 +8,7 @@ import { Navbar } from '@/components/navbar';
 import { subscribeToUserGroups, subscribeToGroupExpenses } from '@/lib/firestore';
 import {
   calculateFriendBalances,
+  formatAmount,
   type Group,
   type Expense,
   type FriendBalance,
@@ -18,6 +19,7 @@ export default function FriendsPage() {
   const router = useRouter();
 
   const [friends, setFriends] = useState<FriendBalance[]>([]);
+  const [currentGroups, setCurrentGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export default function FriendsPage() {
 
     const unsubGroups = subscribeToUserGroups(user.uid, (fetchedGroups) => {
       currentGroups = fetchedGroups;
+      setCurrentGroups(fetchedGroups);
       expenseUnsubs.forEach((u) => u());
       expenseUnsubs.length = 0;
 
@@ -61,8 +64,21 @@ export default function FriendsPage() {
     };
   }, [user, authLoading, router]);
 
-  const totalOwed = friends.filter((f) => f.netAmount > 0).reduce((s, f) => s + f.netAmount, 0);
-  const totalOwe = friends.filter((f) => f.netAmount < 0).reduce((s, f) => s + f.netAmount, 0);
+  const groupCurrencyMap = currentGroups.reduce<Record<string, string>>((acc, g) => {
+    acc[g.id] = g.currency;
+    return acc;
+  }, {});
+  const perCurrencyBalance = friends.reduce<Record<string, number>>((acc, friend) => {
+    for (const g of friend.groups) {
+      const currency = groupCurrencyMap[g.groupId];
+      if (currency && Math.abs(g.amount) > 0.001) {
+        acc[currency] = (acc[currency] ?? 0) + g.amount;
+      }
+    }
+    return acc;
+  }, {});
+  const owedEntries = Object.entries(perCurrencyBalance).filter(([, v]) => v >  0.001);
+  const oweEntries  = Object.entries(perCurrencyBalance).filter(([, v]) => v < -0.001);
 
   if (authLoading || loading) {
     return (
@@ -80,19 +96,25 @@ export default function FriendsPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Friends</h1>
         <p className="text-sm text-gray-400 mb-5">Your net balances across all groups</p>
 
-        {friends.length > 0 && (
+        {friends.length > 0 && (owedEntries.length > 0 || oweEntries.length > 0) && (
           <div className="grid grid-cols-2 gap-3 mb-5">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">You are owed</p>
-              <p className="text-2xl font-bold text-[#1B998B]">
-                {totalOwed > 0 ? `+${totalOwed.toFixed(2)}` : '—'}
-              </p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">You are owed</p>
+              {owedEntries.length > 0
+                ? owedEntries.map(([cur, amt]) => (
+                    <p key={cur} className="text-xl font-bold text-[#1B998B]">{formatAmount(amt, cur)}</p>
+                  ))
+                : <p className="text-2xl font-bold text-gray-300">—</p>
+              }
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">You owe</p>
-              <p className="text-2xl font-bold text-[#E84545]">
-                {totalOwe < 0 ? totalOwe.toFixed(2) : '—'}
-              </p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">You owe</p>
+              {oweEntries.length > 0
+                ? oweEntries.map(([cur, amt]) => (
+                    <p key={cur} className="text-xl font-bold text-[#E84545]">{formatAmount(Math.abs(amt), cur)}</p>
+                  ))
+                : <p className="text-2xl font-bold text-gray-300">—</p>
+              }
             </div>
           </div>
         )}
@@ -122,17 +144,20 @@ export default function FriendsPage() {
                     <p className="text-xs text-gray-400 truncate">{friend.email}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    {friend.netAmount > 0 ? (
-                      <>
-                        <p className="text-xs text-gray-400">owes you</p>
-                        <p className="font-bold text-[#1B998B]">+{friend.netAmount.toFixed(2)}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-xs text-gray-400">you owe</p>
-                        <p className="font-bold text-[#E84545]">{friend.netAmount.toFixed(2)}</p>
-                      </>
-                    )}
+                    {Object.entries(
+                      friend.groups.reduce<Record<string, number>>((acc, g) => {
+                        const cur = groupCurrencyMap[g.groupId];
+                        if (cur) acc[cur] = (acc[cur] ?? 0) + g.amount;
+                        return acc;
+                      }, {})
+                    ).map(([cur, amt]) => (
+                      <div key={cur} className="mb-0.5">
+                        <p className="text-xs text-gray-400">{amt > 0 ? 'owes you' : 'you owe'}</p>
+                        <p className={`font-bold ${amt > 0 ? 'text-[#1B998B]' : 'text-[#E84545]'}`}>
+                          {formatAmount(Math.abs(amt), cur)}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -147,7 +172,7 @@ export default function FriendsPage() {
                           {g.groupName}
                         </Link>
                         <span className={`text-xs font-semibold ${g.amount > 0 ? 'text-[#1B998B]' : 'text-[#E84545]'}`}>
-                          {g.amount > 0 ? '+' : ''}{g.amount.toFixed(2)}
+                          {formatAmount(Math.abs(g.amount), groupCurrencyMap[g.groupId] ?? '')}
                         </span>
                       </div>
                     ))}

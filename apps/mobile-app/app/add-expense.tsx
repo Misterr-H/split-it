@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
 import { addExpense, updateExpense, subscribeToGroup, subscribeToGroupExpenses } from '@/lib/firestore';
@@ -296,8 +297,10 @@ export default function AddExpenseScreen() {
       } else {
         await addExpense(group.id, description.trim(), numAmount, paidBy, splits, user.uid);
       }
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', e instanceof Error ? e.message : isEditing ? 'Failed to update expense' : 'Failed to add expense');
     } finally {
       setSaving(false);
@@ -349,6 +352,7 @@ export default function AddExpenseScreen() {
     : [];
 
   function selectQuickOption(opt: QuickOption) {
+    Haptics.selectionAsync();
     setPaidBy(opt.paidByUid);
     setSplitMode('equally');
     setEquallySelected(opt.splitWith);
@@ -364,6 +368,7 @@ export default function AddExpenseScreen() {
   }
 
   function openSplitPanel() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowAdvanced(!isTwoPeople);
     setShowSplitPanel(true);
   }
@@ -465,7 +470,7 @@ export default function AddExpenseScreen() {
                   <Pressable
                     key={uid}
                     style={[styles.payerChip, selected && styles.payerChipSelected]}
-                    onPress={() => setPaidBy(uid)}
+                    onPress={() => { Haptics.selectionAsync(); setPaidBy(uid); }}
                   >
                     <Text style={[styles.payerChipText, selected && styles.payerChipTextSelected]}>
                       {name}
@@ -502,14 +507,14 @@ export default function AddExpenseScreen() {
                     )}
                   </Pressable>
                 ))}
-                <Pressable style={styles.moreOptionsBtn} onPress={() => setShowAdvanced(true)}>
+                <Pressable style={styles.moreOptionsBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAdvanced(true); }}>
                   <Text style={styles.moreOptionsBtnText}>More options</Text>
                 </Pressable>
               </View>
             ) : (
               <View style={styles.advancedSection}>
                 {isTwoPeople && (
-                  <Pressable style={styles.backToSimpleBtn} onPress={() => setShowAdvanced(false)}>
+                  <Pressable style={styles.backToSimpleBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAdvanced(false); }}>
                     <Ionicons name="chevron-back" size={14} color={Colors.primary} />
                     <Text style={styles.backToSimpleBtnText}>Simple options</Text>
                   </Pressable>
@@ -521,7 +526,7 @@ export default function AddExpenseScreen() {
                     <Pressable
                       key={mode}
                       style={[styles.modeTab, splitMode === mode && styles.modeTabActive]}
-                      onPress={() => setSplitMode(mode)}
+                      onPress={() => { Haptics.selectionAsync(); setSplitMode(mode); }}
                     >
                       <Text style={[styles.modeTabIcon, splitMode === mode && styles.modeTabIconActive]}>
                         {icon}
@@ -545,11 +550,12 @@ export default function AddExpenseScreen() {
                         <Pressable
                           key={uid}
                           style={styles.memberRow}
-                          onPress={() =>
+                          onPress={() => {
+                            Haptics.selectionAsync();
                             setEquallySelected((prev) =>
                               prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid]
-                            )
-                          }
+                            );
+                          }}
                         >
                           <View style={[styles.checkCircle, checked && styles.checkCircleActive]}>
                             {checked && <Ionicons name="checkmark" size={14} color="#FFF" />}
@@ -677,7 +683,7 @@ export default function AddExpenseScreen() {
                 {splitMode === 'equally' && (
                   <Pressable
                     style={styles.selectAllBtn}
-                    onPress={() => setEquallySelected(group.members)}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEquallySelected(group.members); }}
                   >
                     <Text style={styles.selectAllBtnText}>Select All</Text>
                   </Pressable>

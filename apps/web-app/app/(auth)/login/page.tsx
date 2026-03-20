@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { useAuth } from '@/context/auth-context';
+import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -12,6 +14,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+
+  async function handleForgotPassword() {
+    setForgotError('');
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail.trim().toLowerCase());
+      setForgotSent(true);
+    } catch (err: unknown) {
+      setForgotError(err instanceof Error ? err.message : 'Failed to send reset email.');
+    } finally {
+      setForgotLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,7 +87,16 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-semibold text-gray-700">Password</label>
+              <button
+                type="button"
+                onClick={() => { setShowForgot(!showForgot); setForgotSent(false); setForgotError(''); }}
+                className="text-xs text-[#1B998B] font-semibold hover:underline"
+              >
+                Forgot password?
+              </button>
+            </div>
             <input
               type="password"
               value={password}
@@ -73,6 +106,38 @@ export default function LoginPage() {
               required
             />
           </div>
+
+          {showForgot && (
+            <div className="border border-gray-100 rounded-xl bg-gray-50 p-4">
+              {forgotSent ? (
+                <p className="text-sm font-semibold text-[#1B998B] text-center py-1">
+                  Reset email sent! Check your inbox.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500 font-medium">Enter your email to receive a reset link</p>
+                  {forgotError && (
+                    <p className="text-xs text-red-600">{forgotError}</p>
+                  )}
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#1B998B] focus:ring-2 focus:ring-[#1B998B]/20 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={forgotLoading}
+                    className="w-full bg-[#1B998B] hover:bg-[#158a7d] disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl text-sm transition"
+                  >
+                    {forgotLoading ? 'Sending…' : 'Send Reset Email'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             type="submit"

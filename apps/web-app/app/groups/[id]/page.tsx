@@ -13,6 +13,7 @@ import {
   deleteExpense,
   updateGroup,
   deleteGroup,
+  kickMember,
   createInvite,
   subscribeToGroupSettlements,
   addSettlement,
@@ -114,9 +115,9 @@ export default function GroupDetailPage() {
   // Group settings state
   const [gsName, setGsName] = useState('');
   const [gsCategory, setGsCategory] = useState<import('@/lib/types').GroupCategory>('other');
-  const [gsCurrency, setGsCurrency] = useState('INR');
   const [gsSaving, setGsSaving] = useState(false);
   const [gsDeletingGroup, setGsDeletingGroup] = useState(false);
+  const [gsKickingMember, setGsKickingMember] = useState<string | null>(null);
   const [gsError, setGsError] = useState('');
 
   useEffect(() => {
@@ -177,7 +178,6 @@ export default function GroupDetailPage() {
     if (!group) return;
     setGsName(group.name);
     setGsCategory(group.category);
-    setGsCurrency(group.currency);
     setGsError('');
     setModal('groupSettings');
   }
@@ -325,7 +325,7 @@ export default function GroupDetailPage() {
     if (!gsName.trim()) { setGsError('Group name cannot be empty.'); return; }
     setGsSaving(true); setGsError('');
     try {
-      await updateGroup(group.id, { name: gsName.trim(), category: gsCategory, currency: gsCurrency });
+      await updateGroup(group.id, { name: gsName.trim(), category: gsCategory });
       setModal(null);
     } catch (err) { setGsError(err instanceof Error ? err.message : 'Failed to save changes.'); }
     finally { setGsSaving(false); }
@@ -341,6 +341,20 @@ export default function GroupDetailPage() {
     } catch (err) {
       setGsError(err instanceof Error ? err.message : 'Failed to delete group.');
       setGsDeletingGroup(false);
+    }
+  }
+
+  async function handleKickMember(uid: string) {
+    if (!group) return;
+    const name = group.memberDetails[uid]?.displayName ?? uid;
+    if (!confirm(`Remove "${name}" from "${group.name}"? Their expenses will remain but they will lose access.`)) return;
+    setGsKickingMember(uid);
+    try {
+      await kickMember(group.id, uid);
+    } catch (err) {
+      setGsError(err instanceof Error ? err.message : 'Failed to remove member.');
+    } finally {
+      setGsKickingMember(null);
     }
   }
 
@@ -916,20 +930,14 @@ export default function GroupDetailPage() {
                 </div>
               </div>
 
-              {/* Currency */}
+              {/* Currency (read-only) */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Currency</label>
-                <div className="flex flex-wrap gap-2">
-                  {CURRENCIES.map((c) => (
-                    <button
-                      key={c.code}
-                      type="button"
-                      onClick={() => setGsCurrency(c.code)}
-                      className={`px-3 py-2 rounded-xl border-2 text-sm font-semibold transition ${gsCurrency === c.code ? 'border-[#1B998B] bg-[#E8F8F6] text-[#1B998B]' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
-                    >
-                      {c.symbol} {c.code}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  <span className="text-sm font-semibold text-gray-800">
+                    {CURRENCIES.find((c) => c.code === group.currency)?.symbol ?? ''} {group.currency}
+                  </span>
+                  <span className="text-xs text-gray-400">Cannot be changed after creation</span>
                 </div>
               </div>
 
@@ -941,6 +949,7 @@ export default function GroupDetailPage() {
                     const detail = group.memberDetails[uid];
                     const isCreator = uid === group.createdBy;
                     const isMe = uid === user?.uid;
+                    const canKick = user?.uid === group.createdBy && !isCreator && !isMe;
                     return (
                       <div key={uid} className={`flex items-center gap-3 p-3 bg-white ${i < group.members.length - 1 ? 'border-b border-gray-100' : ''}`}>
                         <div className="w-9 h-9 rounded-full bg-[#1B998B]/20 flex items-center justify-center text-sm font-bold text-[#1B998B] shrink-0">
@@ -953,26 +962,43 @@ export default function GroupDetailPage() {
                         {isCreator && (
                           <span className="text-xs font-bold text-[#1B998B] bg-[#E8F8F6] px-2 py-0.5 rounded-md border border-[#1B998B]/30 shrink-0">Creator</span>
                         )}
+                        {canKick && (
+                          <button
+                            type="button"
+                            onClick={() => handleKickMember(uid)}
+                            disabled={gsKickingMember === uid}
+                            className="ml-1 p-1.5 rounded-lg text-[#E84545] hover:bg-red-50 transition disabled:opacity-50 shrink-0"
+                            title={`Remove ${detail?.displayName ?? uid}`}
+                          >
+                            {gsKickingMember === uid ? (
+                              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                            ) : (
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" strokeLinecap="round" strokeLinejoin="round"/><line x1="18" y1="6" x2="22" y2="10" strokeLinecap="round"/><line x1="22" y1="6" x2="18" y2="10" strokeLinecap="round"/></svg>
+                            )}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Danger zone */}
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
-                <p className="text-xs font-bold text-[#E84545] uppercase tracking-wide">Danger Zone</p>
-                <button
-                  type="button"
-                  onClick={handleDeleteGroup}
-                  disabled={gsDeletingGroup}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#E84545] bg-white text-[#E84545] font-bold text-sm hover:bg-red-50 transition disabled:opacity-50"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><polyline points="3 6 5 6 21 6" strokeLinecap="round" strokeLinejoin="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 11v6M14 11v6" strokeLinecap="round" strokeLinejoin="round"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  {gsDeletingGroup ? 'Deleting…' : 'Delete Group'}
-                </button>
-                <p className="text-xs text-red-400 text-center">Permanently deletes all expenses and settlements.</p>
-              </div>
+              {/* Danger zone — creator only */}
+              {user?.uid === group.createdBy && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+                  <p className="text-xs font-bold text-[#E84545] uppercase tracking-wide">Danger Zone</p>
+                  <button
+                    type="button"
+                    onClick={handleDeleteGroup}
+                    disabled={gsDeletingGroup}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#E84545] bg-white text-[#E84545] font-bold text-sm hover:bg-red-50 transition disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><polyline points="3 6 5 6 21 6" strokeLinecap="round" strokeLinejoin="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 11v6M14 11v6" strokeLinecap="round" strokeLinejoin="round"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    {gsDeletingGroup ? 'Deleting…' : 'Delete Group'}
+                  </button>
+                  <p className="text-xs text-red-400 text-center">Permanently deletes all expenses and settlements.</p>
+                </div>
+              )}
             </div>
           </form>
         </div>

@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
+import * as Haptics from 'expo-haptics';
 import {
   calculateGroupBalances,
   calculateMemberNetBalances,
@@ -25,6 +26,7 @@ import {
   createInvite,
   deleteExpense,
   deleteGroup,
+  kickMember,
   subscribeToGroup,
   subscribeToGroupExpenses,
   subscribeToGroupSettlements,
@@ -74,9 +76,9 @@ export default function GroupDetailScreen() {
   // Group settings state
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState<GroupCategory>('other');
-  const [editCurrency, setEditCurrency] = useState('INR');
   const [editSaving, setEditSaving] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const [kickingMember, setKickingMember] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -90,13 +92,12 @@ export default function GroupDetailScreen() {
               onPress={() => {
                 setEditName(g.name);
                 setEditCategory(g.category);
-                setEditCurrency(g.currency);
                 setOverlay('groupSettings');
               }}
               hitSlop={12}
               style={{ marginRight: 4 }}
             >
-              <Ionicons name="settings-outline" size={22} color={Colors.primary} />
+              <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
             </Pressable>
           ),
         });
@@ -134,7 +135,6 @@ export default function GroupDetailScreen() {
       await updateGroup(group.id, {
         name: editName.trim(),
         category: editCategory,
-        currency: editCurrency,
       });
       setOverlay(null);
     } catch {
@@ -169,6 +169,32 @@ export default function GroupDetailScreen() {
     );
   }
 
+  function handleKickMember(uid: string) {
+    if (!group) return;
+    const name = group.memberDetails[uid]?.displayName ?? uid;
+    Alert.alert(
+      'Remove Member',
+      `Remove "${name}" from "${group.name}"? Their expenses will remain but they will lose access.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setKickingMember(uid);
+            try {
+              await kickMember(group.id, uid);
+            } catch {
+              Alert.alert('Error', 'Failed to remove member');
+            } finally {
+              setKickingMember(null);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   async function handleInvite() {
     if (!group || !user) return;
     try {
@@ -181,6 +207,7 @@ export default function GroupDetailScreen() {
   }
 
   function openSettleTarget(b: Balance) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSettleTarget(b);
     setSettleAmount(Math.abs(b.amount).toFixed(2));
     setSettleNote('');
@@ -200,8 +227,10 @@ export default function GroupDetailScreen() {
       const from = isDebtor ? settleTarget.uid : user.uid;
       const to = isDebtor ? user.uid : settleTarget.uid;
       await addSettlement(group.id, from, to, amt, settleNote.trim() || undefined);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSettleTarget(null);
     } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to record payment');
     } finally {
       setSettling(false);
@@ -728,20 +757,13 @@ export default function GroupDetailScreen() {
               ))}
             </View>
 
-            {/* Currency */}
+            {/* Currency (read-only) */}
             <Text style={styles.gsLabel}>Currency</Text>
-            <View style={styles.gsCurrencyGrid}>
-              {CURRENCIES.map((c) => (
-                <Pressable
-                  key={c.code}
-                  style={[styles.gsCurrencyChip, editCurrency === c.code && styles.gsCurrencyChipSelected]}
-                  onPress={() => setEditCurrency(c.code)}
-                >
-                  <Text style={[styles.gsCurrencyText, editCurrency === c.code && { color: Colors.primary }]}>
-                    {c.symbol} {c.code}
-                  </Text>
-                </Pressable>
-              ))}
+            <View style={styles.gsCurrencyReadOnly}>
+              <Text style={styles.gsCurrencyReadOnlyText}>
+                {CURRENCIES.find((c) => c.code === group.currency)?.symbol ?? ''} {group.currency}
+              </Text>
+              <Text style={styles.gsCurrencyNote}>Currency cannot be changed after group creation.</Text>
             </View>
 
             {/* Members */}
@@ -751,6 +773,7 @@ export default function GroupDetailScreen() {
                 const detail = group.memberDetails[uid];
                 const isCreator = uid === group.createdBy;
                 const isMe = uid === user?.uid;
+                const canKick = user?.uid === group.createdBy && !isCreator && !isMe;
                 return (
                   <View key={uid} style={styles.gsMemberRow}>
                     <View style={styles.gsMemberAvatar}>
@@ -769,28 +792,43 @@ export default function GroupDetailScreen() {
                         <Text style={styles.gsCreatorBadgeText}>Creator</Text>
                       </View>
                     )}
+                    {canKick && (
+                      <Pressable
+                        onPress={() => handleKickMember(uid)}
+                        disabled={kickingMember === uid}
+                        style={styles.gsKickBtn}
+                        hitSlop={8}
+                      >
+                        {kickingMember === uid
+                          ? <ActivityIndicator size="small" color={Colors.danger} />
+                          : <Ionicons name="person-remove-outline" size={18} color={Colors.danger} />
+                        }
+                      </Pressable>
+                    )}
                   </View>
                 );
               })}
             </View>
 
-            {/* Danger zone */}
-            <View style={styles.gsDanger}>
-              <Text style={styles.gsDangerTitle}>Danger Zone</Text>
-              <Pressable
-                style={[styles.gsDeleteBtn, deletingGroup && { opacity: 0.6 }]}
-                onPress={handleDeleteGroup}
-                disabled={deletingGroup}
-              >
-                <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-                <Text style={styles.gsDeleteBtnText}>
-                  {deletingGroup ? 'Deleting…' : 'Delete Group'}
+            {/* Danger zone — creator only */}
+            {user?.uid === group.createdBy && (
+              <View style={styles.gsDanger}>
+                <Text style={styles.gsDangerTitle}>Danger Zone</Text>
+                <Pressable
+                  style={[styles.gsDeleteBtn, deletingGroup && { opacity: 0.6 }]}
+                  onPress={handleDeleteGroup}
+                  disabled={deletingGroup}
+                >
+                  <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                  <Text style={styles.gsDeleteBtnText}>
+                    {deletingGroup ? 'Deleting…' : 'Delete Group'}
+                  </Text>
+                </Pressable>
+                <Text style={styles.gsDangerNote}>
+                  This will permanently delete all expenses and settlements.
                 </Text>
-              </Pressable>
-              <Text style={styles.gsDangerNote}>
-                This will permanently delete all expenses and settlements.
-              </Text>
-            </View>
+              </View>
+            )}
           </ScrollView>
         </View>
       )}
@@ -1228,17 +1266,21 @@ const styles = StyleSheet.create({
   },
   gsCategoryCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
   gsCategoryLabel: { fontSize: 11, fontWeight: '600', color: Colors.light.textSecondary },
-  gsCurrencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  gsCurrencyChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    backgroundColor: Colors.light.card,
-    borderRadius: 20,
-    borderWidth: 1.5,
+  gsCurrencyReadOnly: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 12,
+    borderWidth: 1,
     borderColor: Colors.light.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
   },
-  gsCurrencyChipSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  gsCurrencyText: { fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary },
+  gsCurrencyReadOnlyText: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
+  gsCurrencyNote: { fontSize: 12, color: Colors.light.textSecondary },
+  gsKickBtn: {
+    padding: 6,
+    marginLeft: 4,
+  },
   gsMemberList: {
     backgroundColor: Colors.light.card,
     borderRadius: 14,

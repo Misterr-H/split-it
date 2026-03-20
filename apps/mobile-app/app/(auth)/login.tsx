@@ -12,8 +12,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
+import { auth } from '@/lib/firebase';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -21,6 +23,26 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
+  async function handleForgotPassword() {
+    if (!forgotEmail.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail.trim().toLowerCase());
+      setForgotSent(true);
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to send reset email');
+    } finally {
+      setForgotLoading(false);
+    }
+  }
 
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -55,44 +77,97 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              placeholderTextColor={Colors.light.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            {showForgot ? (
+              <>
+                <Text style={styles.forgotTitle}>Reset Password</Text>
+                <Text style={styles.forgotDesc}>Enter your email and we'll send you a reset link.</Text>
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={Colors.light.textSecondary}
-              secureTextEntry
-            />
+                {forgotSent ? (
+                  <View style={styles.forgotSuccessBox}>
+                    <Text style={styles.forgotSent}>Reset email sent! Check your inbox.</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={forgotEmail}
+                      onChangeText={setForgotEmail}
+                      placeholder="you@example.com"
+                      placeholderTextColor={Colors.light.textSecondary}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoFocus
+                    />
+                    <Pressable
+                      style={[styles.button, forgotLoading && styles.buttonDisabled]}
+                      onPress={handleForgotPassword}
+                      disabled={forgotLoading}
+                    >
+                      <Text style={styles.buttonText}>
+                        {forgotLoading ? 'Sending…' : 'Send Reset Email'}
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
 
-            <Pressable
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
-            </Pressable>
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
-              <Link href="/(auth)/signup" asChild>
-                <Pressable>
-                  <Text style={styles.link}>Sign Up</Text>
+                <Pressable
+                  style={styles.backRow}
+                  onPress={() => { setShowForgot(false); setForgotSent(false); setForgotEmail(''); }}
+                >
+                  <Text style={styles.link}>← Back to Sign In</Text>
                 </Pressable>
-              </Link>
-            </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor={Colors.light.textSecondary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={Colors.light.textSecondary}
+                  secureTextEntry
+                />
+
+                <Pressable
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.forgotRow}
+                  onPress={() => setShowForgot(true)}
+                >
+                  <Text style={styles.link}>Forgot password?</Text>
+                </Pressable>
+
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>Don't have an account? </Text>
+                  <Link href="/(auth)/signup" asChild>
+                    <Pressable>
+                      <Text style={styles.link}>Sign Up</Text>
+                    </Pressable>
+                  </Link>
+                </View>
+              </>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -147,6 +222,12 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#FFF', fontSize: 17, fontWeight: '700' },
+  forgotTitle: { fontSize: 22, fontWeight: '700', color: Colors.light.text, marginBottom: 6 },
+  forgotDesc: { fontSize: 14, color: Colors.light.textSecondary, marginBottom: 16 },
+  forgotSuccessBox: { paddingVertical: 24, alignItems: 'center' },
+  forgotSent: { color: Colors.primary, fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  forgotRow: { alignItems: 'flex-end', marginTop: 8 },
+  backRow: { alignItems: 'center', marginTop: 20 },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   footerText: { color: Colors.light.textSecondary, fontSize: 15 },
   link: { color: Colors.primary, fontSize: 15, fontWeight: '600' },

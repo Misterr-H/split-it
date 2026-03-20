@@ -1,8 +1,10 @@
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   getDoc,
@@ -205,6 +207,13 @@ export async function addSettlement(
     note: note ?? '',
     date: serverTimestamp(),
     createdAt: serverTimestamp(),
+  });
+}
+
+export async function kickMember(groupId: string, memberUid: string): Promise<void> {
+  await updateDoc(doc(db, 'groups', groupId), {
+    members: arrayRemove(memberUid),
+    [`memberDetails.${memberUid}`]: deleteField(),
   });
 }
 

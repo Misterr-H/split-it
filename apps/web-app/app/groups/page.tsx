@@ -131,7 +131,15 @@ export default function GroupsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const overallBalance = groups.reduce((s, g) => s + g.netBalance, 0);
+  const perCurrencyBalance = groups.reduce<Record<string, number>>((acc, g) => {
+    if (Math.abs(g.netBalance) > 0.001) {
+      acc[g.currency] = (acc[g.currency] ?? 0) + g.netBalance;
+    }
+    return acc;
+  }, {});
+  const owedEntries = Object.entries(perCurrencyBalance).filter(([, v]) => v >  0.001);
+  const oweEntries  = Object.entries(perCurrencyBalance).filter(([, v]) => v < -0.001);
+  const allSettled  = owedEntries.length === 0 && oweEntries.length === 0;
 
   if (authLoading || loading) {
     return (
@@ -149,14 +157,22 @@ export default function GroupsPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Groups</h1>
-            {groups.length > 0 && (
-              <p className={`text-sm mt-0.5 font-medium ${overallBalance >= 0 ? 'text-[#1B998B]' : 'text-[#E84545]'}`}>
-                {overallBalance === 0
-                  ? 'All settled up'
-                  : overallBalance > 0
-                    ? `Overall you are owed`
-                    : `Overall you owe`}
-              </p>
+            {groups.length > 0 && allSettled && (
+              <p className="text-sm mt-0.5 font-medium text-[#1B998B]">All settled up</p>
+            )}
+            {groups.length > 0 && !allSettled && (
+              <div className="mt-0.5 space-y-0.5">
+                {owedEntries.length > 0 && (
+                  <p className="text-sm font-medium text-[#1B998B]">
+                    You are owed {owedEntries.map(([cur, amt]) => formatAmount(Math.abs(amt), cur)).join(' + ')}
+                  </p>
+                )}
+                {oweEntries.length > 0 && (
+                  <p className="text-sm font-medium text-[#E84545]">
+                    You owe {oweEntries.map(([cur, amt]) => formatAmount(Math.abs(amt), cur)).join(' + ')}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <button

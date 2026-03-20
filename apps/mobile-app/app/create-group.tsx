@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
 import { createGroup } from '@/lib/firestore';
@@ -37,8 +38,10 @@ export default function CreateGroupScreen() {
         displayName: profile.displayName,
         email: profile.email,
       });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace(`/group/${groupId}`);
     } catch (e: unknown) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to create group');
     } finally {
       setLoading(false);
@@ -68,7 +71,7 @@ export default function CreateGroupScreen() {
             <Pressable
               key={cat.value}
               style={[styles.categoryCard, category === cat.value && styles.categoryCardSelected]}
-              onPress={() => setCategory(cat.value)}
+              onPress={() => { Haptics.selectionAsync(); setCategory(cat.value); }}
             >
               <Ionicons
                 name={cat.icon as React.ComponentProps<typeof Ionicons>['name']}
@@ -88,7 +91,7 @@ export default function CreateGroupScreen() {
             <Pressable
               key={c.code}
               style={[styles.currencyChip, currency === c.code && styles.currencyChipSelected]}
-              onPress={() => setCurrency(c.code)}
+              onPress={() => { Haptics.selectionAsync(); setCurrency(c.code); }}
             >
               <Text style={[styles.currencyCode, currency === c.code && { color: Colors.primary }]}>
                 {c.symbol} {c.code}

@@ -15,9 +15,29 @@ import { subscribeToGroupExpenses, subscribeToUserGroups } from '@/lib/firestore
 import { formatAmount } from '@/lib/types';
 import type { Expense, FriendBalance, Group } from '@/lib/types';
 
+function BalanceBanner({ owedEntries, oweEntries }: {
+  owedEntries: [string, number][];
+  oweEntries:  [string, number][];
+}) {
+  const fmt = (entries: [string, number][]) =>
+    entries.map(([cur, amt]) => formatAmount(Math.abs(amt), cur)).join(' + ');
+  if (owedEntries.length > 0 && oweEntries.length > 0) {
+    return (
+      <View>
+        <Text style={[styles.headerSub, { color: Colors.primary }]}>You are owed {fmt(owedEntries)}</Text>
+        <Text style={[styles.headerSub, { color: Colors.danger }]}>You owe {fmt(oweEntries)}</Text>
+      </View>
+    );
+  }
+  if (owedEntries.length > 0)
+    return <Text style={[styles.headerSub, { color: Colors.primary }]}>You are owed {fmt(owedEntries)}</Text>;
+  return <Text style={[styles.headerSub, { color: Colors.danger }]}>You owe {fmt(oweEntries)}</Text>;
+}
+
 export default function FriendsScreen() {
   const { user } = useAuth();
   const [friends, setFriends] = useState<FriendBalance[]>([]);
+  const [currentGroups, setCurrentGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,6 +48,7 @@ export default function FriendsScreen() {
 
     const unsubGroups = subscribeToUserGroups(user.uid, (fetchedGroups) => {
       currentGroups = fetchedGroups;
+      setCurrentGroups(fetchedGroups);
       expenseUnsubs.forEach((u) => u());
       expenseUnsubs.length = 0;
 
@@ -59,7 +80,21 @@ export default function FriendsScreen() {
     };
   }, [user]);
 
-  const overallBalance = friends.reduce((s, f) => s + f.netAmount, 0);
+  const groupCurrencyMap = currentGroups.reduce<Record<string, string>>((acc, g) => {
+    acc[g.id] = g.currency;
+    return acc;
+  }, {});
+  const perCurrencyBalance = friends.reduce<Record<string, number>>((acc, friend) => {
+    for (const g of friend.groups) {
+      const currency = groupCurrencyMap[g.groupId];
+      if (currency && Math.abs(g.amount) > 0.001) {
+        acc[currency] = (acc[currency] ?? 0) + g.amount;
+      }
+    }
+    return acc;
+  }, {});
+  const owedEntries = Object.entries(perCurrencyBalance).filter(([, v]) => v >  0.001);
+  const oweEntries  = Object.entries(perCurrencyBalance).filter(([, v]) => v < -0.001);
 
   function renderFriend({ item }: { item: FriendBalance }) {
     const isPositive = item.netAmount > 0;
@@ -82,16 +117,26 @@ export default function FriendsScreen() {
               {g.groupName}:{' '}
               <Text style={{ color: g.amount > 0 ? Colors.primary : Colors.danger }}>
                 {g.amount > 0 ? 'owes you' : 'you owe'}{' '}
-                {formatAmount(g.amount, '')}
+                {formatAmount(g.amount, groupCurrencyMap[g.groupId] ?? '')}
               </Text>
             </Text>
           ))}
         </View>
         <View style={styles.cardRight}>
-          <Text style={styles.balanceLabel}>{isPositive ? 'owes you' : 'you owe'}</Text>
-          <Text style={[styles.balanceAmount, { color: isPositive ? Colors.primary : Colors.danger }]}>
-            {formatAmount(item.netAmount, '')}
-          </Text>
+          {Object.entries(
+            item.groups.reduce<Record<string, number>>((acc, g) => {
+              const cur = groupCurrencyMap[g.groupId];
+              if (cur) acc[cur] = (acc[cur] ?? 0) + g.amount;
+              return acc;
+            }, {})
+          ).map(([cur, amt]) => (
+            <View key={cur} style={{ alignItems: 'flex-end', marginBottom: 2 }}>
+              <Text style={styles.balanceLabel}>{amt > 0 ? 'owes you' : 'you owe'}</Text>
+              <Text style={[styles.balanceAmount, { color: amt > 0 ? Colors.primary : Colors.danger }]}>
+                {formatAmount(Math.abs(amt), cur)}
+              </Text>
+            </View>
+          ))}
         </View>
       </View>
     );
@@ -101,10 +146,8 @@ export default function FriendsScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Friends</Text>
-        {!loading && friends.length > 0 && (
-          <Text style={[styles.headerSub, { color: overallBalance >= 0 ? Colors.primary : Colors.danger }]}>
-            Overall you are {overallBalance >= 0 ? 'owed' : 'owing'}
-          </Text>
+        {!loading && friends.length > 0 && (owedEntries.length > 0 || oweEntries.length > 0) && (
+          <BalanceBanner owedEntries={owedEntries} oweEntries={oweEntries} />
         )}
       </View>
 
