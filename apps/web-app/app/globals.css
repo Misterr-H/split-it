@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #1B998B;
+  --primary-light: #E8F8F6;
+  --danger: #E84545;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
