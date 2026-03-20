@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
 import PwaInstallButton from "@/components/pwa-install-button";
 import ServiceWorkerRegistrar from "@/components/service-worker-registrar";
+import ClarityInit from "@/components/clarity-init";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -94,6 +95,7 @@ export default function RootLayout({
           <PwaInstallButton />
         </AuthProvider>
         <ServiceWorkerRegistrar />
+        <ClarityInit />
       </body>
     </html>
   );

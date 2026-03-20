@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "clarity-js": "^0.8.57",
     "firebase": "^12.10.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",

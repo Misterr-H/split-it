@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
+import { initialize } from '@microsoft/react-native-clarity';
 
 // Handles redirect side-effects only — always returns null so the Stack is unaffected.
 function AuthGuard() {
@@ -39,6 +40,10 @@ function AuthGuard() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    initialize('vyq32h0u2q');
+  }, []);
+
   return (
     <AuthProvider>
       <StatusBar style="auto" />
