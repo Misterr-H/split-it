@@ -6,6 +6,7 @@ export interface UserProfile {
   email: string;
   photoURL?: string;
   createdAt: Timestamp;
+  signedUpFrom: 'web' | 'mobile';
 }
 
 export type GroupCategory = 'trip' | 'home' | 'couple' | 'other';

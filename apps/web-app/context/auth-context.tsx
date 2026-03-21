@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signUp(email: string, password: string, displayName: string) {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await createUserProfile(credential.user.uid, displayName, email);
+    await createUserProfile(credential.user.uid, displayName, email, 'web');
     const p = await getUserProfile(credential.user.uid);
     setProfile(p);
   }

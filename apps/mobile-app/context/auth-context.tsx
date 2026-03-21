@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Profile missing (e.g. account predates Firestore setup) — auto-create it
             console.log('[AuthProvider] profile missing, auto-creating...');
             const displayName = firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User';
-            await createUserProfile(firebaseUser.uid, displayName, firebaseUser.email ?? '');
+            await createUserProfile(firebaseUser.uid, displayName, firebaseUser.email ?? '', 'mobile');
             p = await getUserProfile(firebaseUser.uid);
           }
           console.log('[AuthProvider] profile fetched:', p ? 'ok' : 'still null');
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signUp(email: string, password: string, displayName: string) {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await createUserProfile(credential.user.uid, displayName, email);
+    await createUserProfile(credential.user.uid, displayName, email, 'mobile');
     const p = await getUserProfile(credential.user.uid);
     setProfile(p);
   }

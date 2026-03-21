@@ -24,13 +24,15 @@ import { generateToken } from './types';
 export async function createUserProfile(
   uid: string,
   displayName: string,
-  email: string
+  email: string,
+  signedUpFrom: 'web' | 'mobile'
 ): Promise<void> {
   await setDoc(doc(db, 'users', uid), {
     uid,
     displayName,
     email,
     createdAt: serverTimestamp(),
+    signedUpFrom,
   });
 }
 
