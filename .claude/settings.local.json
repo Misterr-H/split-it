@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --print \"require.resolve\\(''react-native/package.json''\\)\")",
+      "Bash(node --print \"require.resolve\\(''@react-native/gradle-plugin/package.json'', { paths: [require.resolve\\(''react-native/package.json''\\)] }\\)\")",
+      "Bash(./gradlew --stop)",
+      "Bash(taskkill //F //IM java.exe)"
+    ]
+  }
+}
