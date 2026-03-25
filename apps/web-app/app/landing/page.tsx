@@ -401,6 +401,84 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── Split Expenses Online ── */}
+      <section className="py-20 bg-white border-y border-gray-100">
+        <div className="max-w-5xl mx-auto px-5">
+          <div className="flex flex-col lg:flex-row items-center gap-12">
+            {/* Left: content */}
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-2 bg-[#E8F8F6] text-[#1B998B] text-xs font-semibold px-4 py-1.5 rounded-full mb-5 border border-[#1B998B]/20">
+                <span>⚡</span>
+                No sign-up required
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">
+                Split expenses online — no account needed
+              </h2>
+              <p className="text-gray-500 text-lg mb-4 leading-relaxed">
+                Need to split a one-time bill with friends? Use our free online expense splitter instantly — no sign-up, no app download. Just add names, enter amounts, and get a clear breakdown of who owes what in seconds.
+              </p>
+              <p className="text-gray-500 text-base mb-6 leading-relaxed">
+                Perfect for splitting restaurant bills, trip costs, shared rent, or any group expense. Our tool calculates the optimal settlements automatically, so no one overpays.
+              </p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  'Add unlimited people and expenses',
+                  'Auto-calculates balances and optimal settlements',
+                  'Export results to PDF or Excel',
+                  'Share via a link — works without an account',
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-gray-700 text-sm">
+                    <span className="w-5 h-5 rounded-full bg-[#E8F8F6] flex items-center justify-center text-[#1B998B] font-bold text-xs flex-shrink-0">✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/split-expenses-online"
+                className="inline-flex items-center gap-2 font-bold px-7 py-3.5 rounded-2xl text-white transition-all hover:scale-105 hover:shadow-xl shadow"
+                style={{ background: '#1B998B', boxShadow: '0 8px 24px #1B998B33' }}
+              >
+                Try Free Online Expense Splitter
+                <span>→</span>
+              </Link>
+            </div>
+
+            {/* Right: mockup */}
+            <div className="flex-1 w-full max-w-sm mx-auto lg:max-w-none">
+              <div className="bg-gray-50 rounded-3xl border border-gray-100 shadow-xl p-6">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Example split</p>
+                <div className="space-y-3 mb-5">
+                  {[
+                    { name: 'Dinner', amount: '₹2,400', paidBy: 'Ravi' },
+                    { name: 'Cab', amount: '₹600', paidBy: 'Priya' },
+                    { name: 'Movie tickets', amount: '₹900', paidBy: 'Arun' },
+                  ].map((expense) => (
+                    <div
+                      key={expense.name}
+                      className="bg-white rounded-xl p-3.5 border border-gray-100 flex items-center justify-between shadow-sm"
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{expense.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Paid by {expense.paidBy}</p>
+                      </div>
+                      <span className="font-bold text-gray-800 text-sm">{expense.amount}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-[#E8F8F6] rounded-xl p-4 border border-[#1B998B]/20">
+                  <p className="text-xs font-semibold text-[#1B998B] uppercase tracking-wide mb-2">Optimal settlements</p>
+                  <div className="space-y-1.5">
+                    {['Priya pays Ravi ₹600', 'Arun pays Ravi ₹500'].map((s) => (
+                      <p key={s} className="text-sm text-gray-700 font-medium">{s}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── FAQ ── */}
       <section className="py-20 bg-white border-y border-gray-100">
         <div className="max-w-2xl mx-auto px-5">
@@ -490,9 +568,14 @@ export default function LandingPage() {
             <span className="font-semibold text-gray-600">Split-It</span>
           </div>
           <p>© {new Date().getFullYear()} Split-It · Free &amp; Open. Made with ❤️</p>
-          <Link href="/login" className="text-[#1B998B] font-medium hover:underline">
-            Sign In →
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/split-expenses-online" className="text-[#1B998B] font-medium hover:underline">
+              Split Expenses Online
+            </Link>
+            <Link href="/login" className="text-[#1B998B] font-medium hover:underline">
+              Sign In →
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
