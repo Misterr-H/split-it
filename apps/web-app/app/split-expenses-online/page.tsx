@@ -162,7 +162,7 @@ export default function SplitExpensesOnlinePage() {
               Sign In
             </Link>
             <Link
-              href="/login"
+              href="/signup"
               className="text-sm font-semibold text-white px-5 py-2 rounded-xl transition"
               style={{ background: '#1B998B' }}
             >
@@ -283,7 +283,7 @@ export default function SplitExpensesOnlinePage() {
             Create a free account to save groups, invite friends, and access your expense history anytime.
           </p>
           <Link
-            href="/login"
+            href="/signup"
             className="inline-flex items-center gap-2 text-white font-bold px-8 py-4 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-xl shadow-lg"
             style={{ background: '#1B998B', boxShadow: '0 8px 32px #1B998B40' }}
           >

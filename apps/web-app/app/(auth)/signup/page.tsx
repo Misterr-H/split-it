@@ -1,14 +1,13 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
+import { AuthModeSwitch } from '@/components/auth-mode-switch';
 
-function SignupForm() {
+function SignupForm({ next }: { next?: string | null }) {
   const { signUp } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +28,6 @@ function SignupForm() {
     setLoading(true);
     try {
       await signUp(email.trim().toLowerCase(), password, name.trim());
-      const next = searchParams.get('next');
       router.push(next ?? '/groups');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.');
@@ -93,7 +91,10 @@ function SignupForm() {
   );
 }
 
-export default function SignupPage() {
+function SignupContent() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next');
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
@@ -105,17 +106,17 @@ export default function SignupPage() {
           <p className="text-gray-500 text-sm mt-1">Join Split-It and start splitting expenses</p>
         </div>
 
-        <Suspense fallback={<div className="h-64 bg-white rounded-2xl border border-gray-100 animate-pulse" />}>
-          <SignupForm />
-        </Suspense>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Already have an account?{' '}
-          <Link href="/login" className="text-[#1B998B] font-semibold hover:underline">
-            Sign In
-          </Link>
-        </p>
+        <AuthModeSwitch active="signup" next={next} />
+        <SignupForm next={next} />
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-[#1B998B] border-t-transparent rounded-full animate-spin" /></div>}>
+      <SignupContent />
+    </Suspense>
   );
 }

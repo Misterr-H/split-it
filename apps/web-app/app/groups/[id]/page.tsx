@@ -65,7 +65,7 @@ const MODE_LABELS: Record<SplitMode, string> = {
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [group, setGroup] = useState<Group | null>(null);
@@ -423,21 +423,26 @@ export default function GroupDetailPage() {
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
-        <div className="flex items-start gap-3">
-          <Link href="/groups" className="mt-1 text-gray-400 hover:text-gray-600 transition text-sm">← Back</Link>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{CATEGORY_ICONS[group.category] ?? '📦'}</span>
-              <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
+        <div className="space-y-3 sm:flex sm:items-start sm:gap-3 sm:space-y-0">
+          <div className="flex min-w-0 items-start gap-3 sm:flex-1">
+            <Link href="/groups" className="mt-1 shrink-0 text-gray-400 hover:text-gray-600 transition text-sm">← Back</Link>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-2xl">{CATEGORY_ICONS[group.category] ?? '📦'}</span>
+                <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">{group.name}</h1>
+              </div>
+              <p className="text-sm text-gray-400 mt-0.5">{memberList.length} member{memberList.length !== 1 ? 's' : ''} · {group.currency}</p>
             </div>
-            <p className="text-sm text-gray-400 mt-0.5">{memberList.length} member{memberList.length !== 1 ? 's' : ''} · {group.currency}</p>
           </div>
-          <div className="flex gap-2 items-center">
-            <button onClick={openGroupSettings} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title="Group settings">
+          <div className="grid grid-cols-[auto_1fr] gap-2 sm:ml-auto sm:flex sm:shrink-0 sm:items-center">
+            <button onClick={openGroupSettings} className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition sm:h-auto sm:w-auto sm:p-1.5" title="Group settings">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
-            <button onClick={() => openModal('invite')} className="text-sm font-medium text-[#1B998B] border border-[#1B998B] rounded-lg px-3 py-1.5 hover:bg-[#E8F8F6] transition">Invite</button>
-            <button onClick={() => openModal('addExpense')} className="text-sm font-semibold bg-[#1B998B] text-white rounded-lg px-3 py-1.5 hover:bg-[#158a7d] transition">+ Expense</button>
+            <button onClick={() => openModal('invite')} className="flex h-10 items-center justify-center rounded-lg border border-[#1B998B] px-3 text-sm font-medium text-[#1B998B] hover:bg-[#E8F8F6] transition sm:h-auto sm:py-1.5">Invite</button>
+            <button onClick={() => openModal('addExpense')} className="col-span-2 flex h-11 items-center justify-center rounded-lg bg-[#1B998B] px-3 text-sm font-semibold text-white hover:bg-[#158a7d] transition sm:col-span-1 sm:h-auto sm:py-1.5">
+              <span className="sm:hidden">+ Add Expense</span>
+              <span className="hidden sm:inline">+ Expense</span>
+            </button>
           </div>
         </div>
 

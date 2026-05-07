@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { useAuth } from '@/context/auth-context';
 import { auth } from '@/lib/firebase';
+import { AuthModeSwitch } from '@/components/auth-mode-switch';
 
-export default function LoginPage() {
+function LoginContent() {
   const { signIn } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -47,7 +49,6 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email.trim().toLowerCase(), password);
-      const next = new URLSearchParams(window.location.search).get('next');
       router.push(next ?? '/groups');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed. Check your credentials.');
@@ -66,6 +67,8 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your Split-It account</p>
         </div>
+
+        <AuthModeSwitch active="login" next={next} />
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
           {error && (
@@ -147,14 +150,15 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-[#1B998B] font-semibold hover:underline">
-            Sign Up
-          </Link>
-        </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-[#1B998B] border-t-transparent rounded-full animate-spin" /></div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

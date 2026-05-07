@@ -170,7 +170,7 @@ export default function LandingPage() {
               Sign In
             </Link>
             <Link
-              href="/login"
+              href="/signup"
               className="text-sm font-semibold text-white px-5 py-2 rounded-xl transition"
               style={{ background: '#1B998B' }}
             >
@@ -210,7 +210,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
             <Link
-              href="/login"
+              href="/signup"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-white font-bold px-8 py-4 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-xl shadow-lg"
               style={{ background: '#1B998B', boxShadow: '0 8px 32px #1B998B40' }}
             >
@@ -546,7 +546,7 @@ export default function LandingPage() {
                 Join thousands of friends already splitting smarter with Split-It. Free, always.
               </p>
               <Link
-                href="/login"
+                href="/signup"
                 className="inline-flex items-center gap-2 bg-white font-bold px-8 py-4 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-xl shadow-lg"
                 style={{ color: '#1B998B' }}
               >

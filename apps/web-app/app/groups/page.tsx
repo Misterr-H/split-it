@@ -7,7 +7,7 @@ import { useAuth } from '@/context/auth-context';
 import { Navbar } from '@/components/navbar';
 import { subscribeToUserGroups, createInvite, createGroup } from '@/lib/firestore';
 import { subscribeToGroupExpenses } from '@/lib/firestore';
-import { calculateGroupNetBalance, formatAmount, CURRENCY_SYMBOLS, GROUP_CATEGORY_LABELS } from '@/lib/types';
+import { calculateGroupNetBalance, formatAmount, GROUP_CATEGORY_LABELS } from '@/lib/types';
 import type { Expense, Group } from '@/lib/types';
 
 type GroupWithBalance = Group & { netBalance: number };

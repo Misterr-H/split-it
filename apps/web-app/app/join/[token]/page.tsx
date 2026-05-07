@@ -25,7 +25,6 @@ export default function JoinGroupPage() {
   const [fetching, setFetching] = useState(true);
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
-  const [alreadyMember, setAlreadyMember] = useState(false);
   const [joinError, setJoinError] = useState('');
 
   // Fetch invite doc only — no auth required (public read rule)
@@ -113,14 +112,14 @@ export default function JoinGroupPage() {
               </div>
             </div>
 
-            {joined || alreadyMember ? (
+            {joined ? (
               <div className="text-center">
                 <div className="text-3xl mb-2">🎉</div>
                 <p className="font-semibold text-gray-900 mb-1">
-                  {alreadyMember ? "You're already a member!" : "You've joined the group!"}
+                  You&apos;ve joined the group!
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  Open the Split-It mobile app to see expenses and start splitting.
+                  Open Split-It to see expenses and start splitting.
                 </p>
                 <Link
                   href="/groups"
@@ -133,19 +132,19 @@ export default function JoinGroupPage() {
               <div className="space-y-3">
                 <p className="text-sm text-gray-600 text-center mb-4">
                   You&apos;ve been invited to join <strong>{invite.groupName}</strong>.
-                  Sign in or create an account to join.
+                  Sign in if you already have an account, or create one to join.
                 </p>
                 <Link
                   href={`/login?next=/join/${token}`}
                   className="block w-full text-center py-3 rounded-xl bg-[#1B998B] text-white font-semibold text-sm hover:bg-[#158a7d] transition"
                 >
-                  Sign In to Join
+                  I have an account - Sign in
                 </Link>
                 <Link
                   href={`/signup?next=/join/${token}`}
                   className="block w-full text-center py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition"
                 >
-                  Create Account
+                  I&apos;m new - Create account
                 </Link>
               </div>
             ) : (

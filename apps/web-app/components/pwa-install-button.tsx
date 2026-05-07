@@ -28,7 +28,6 @@ function isRunningStandalone(): boolean {
 
 export default function PwaInstallButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [platform, setPlatform] = useState<Platform>(null);
   const [showIosModal, setShowIosModal] = useState(false);
   const [installed, setInstalled] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -36,13 +35,13 @@ export default function PwaInstallButton() {
   useEffect(() => {
     if (isRunningStandalone()) return; // Already installed — hide everything
 
-    const p = detectPlatform();
-    setPlatform(p);
-
-    if (p === 'ios') {
-      // iOS can't use beforeinstallprompt; always show the FAB so user can get instructions
-      setVisible(true);
-    }
+    const shouldShowIosInstall = detectPlatform() === 'ios';
+    const iosTimer = window.setTimeout(() => {
+      if (shouldShowIosInstall) {
+        // iOS can't use beforeinstallprompt; show instructions instead.
+        setVisible(true);
+      }
+    }, 0);
 
     const onPrompt = (e: Event) => {
       e.preventDefault();
@@ -59,13 +58,14 @@ export default function PwaInstallButton() {
     window.addEventListener('appinstalled', onInstalled);
 
     return () => {
+      window.clearTimeout(iosTimer);
       window.removeEventListener('beforeinstallprompt', onPrompt);
       window.removeEventListener('appinstalled', onInstalled);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (platform === 'ios') {
+    if (detectPlatform() === 'ios') {
       setShowIosModal(true);
       return;
     }
